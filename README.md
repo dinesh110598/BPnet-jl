@@ -1,5 +1,5 @@
 # BPnet-jl
-##Introduction
+## Introduction
 BPnet stands for Boltzmann-PixelCNNetwork which is a generative neural network that (approximately) samples configurations from the Boltzmann distribution for the classical spin system known as the [Ising model](https://en.wikipedia.org/wiki/Ising_model) on various 2d lattices. It's based on the NN architecture called [PixelCNN](https://arxiv.org/abs/1606.05328). We tweak the original design intended for image generation to account for the symmetries of the system and improve the sampling/generation speed as well as scalability to larger system sizes, a development over a previous such [attempt](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.122.080602). As a result, a neural network trained at smaller system size can sample bigger systems without further training. This makes it a computationally viable candidate to approximately calcualate quantities like Helmholtz free energy as well as speed up Monte Carlo simulations near the critical temperature.
 
 ## Note on programming language and ML library
