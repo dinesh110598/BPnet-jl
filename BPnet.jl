@@ -9,13 +9,13 @@ using Flux
 using CUDA
 using CUDA: tanh, Core, size
 
-export BPnet, sample, log_prob
+export BPnet, sample, log_prob, ZeroPad
 
 """
 Pads zeros to arr at dim(=1 or 2), with the arg "before" determining whether
 the padding is before or after. l indicates the length of padding
 """
-function ZeroPad(arr::CuArray, dim::Integer, l::Integer, before=true)
+function ZeroPad(arr::AbstractArray, dim::Integer, l::Integer, before=true)
     #Create array of zeros that will be padded to arr
     if dim==1
         z = similar(arr, l,0,size(arr)[3:4]...)
