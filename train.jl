@@ -1,6 +1,6 @@
 using Base: Integer, Real
 ##
-module trainer
+module Trainer
 
 include("BPnet.jl")
 using BPnetModel
@@ -11,7 +11,7 @@ using ProgressMeter, Statistics
 using ParameterSchedulers
 using ParameterSchedulers:Stateful, Exp
 
-##
+export L, batch_size, opt, lr_schedule, train_loop
 #Need to use custom training loop for the unsupervised learning problem
 #It's convenient to specify the loss as a function here
 
@@ -83,7 +83,6 @@ function train_loop(model::BPnet, iter::Integer, beta::Float32; anneal=true)
             BSON.@save "Saves/Chkpts/BP_s$(step).bson" cpu_model
         end
     end
-    return nothing
 end
 
 end
