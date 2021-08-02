@@ -38,9 +38,9 @@ struct ConvBlock
     p::Int32
     res::Bool #It seems safe to put these non-trainable layer parmeters in here
     last_layer::Bool
-    l_conv::Tuple
-    r_conv::Tuple
-    m_conv::Tuple
+    l_conv::Vector{Conv}
+    r_conv::Vector{Conv}
+    m_conv::Vector{Conv}
 end
 
 function ConvBlock(p::Int, n::Int, mask::Char, last_layer)
@@ -51,17 +51,21 @@ function ConvBlock(p::Int, n::Int, mask::Char, last_layer)
     elseif mask=='B'
         res = 1
     end
-    l_conv = Conv((1, n-1+res), (mask=='A' ? 1 : p)=> 2*p, relu)
-    l_conv2 = Conv((1, 1), 2*p => p, tanh)
+    l_conv = Vector{Conv}(undef, 0)
+    r_conv = Vector{Conv}(undef, 0)
+    m_conv = Vector{Conv}(undef, 0)
     
-    r_conv = Conv((1, n), (mask=='A' ? 1 : p)=> 2*p, relu)
-    r_conv2 = Conv((1, 1), 2*p => p, tanh)
+    push!(l_conv, Conv((1, n-1+res), (mask=='A' ? 1 : p)=> 2*p, tanh))
+    push!(l_conv, Conv((1, 1), 2*p => p, sigmoid))
     
-    m_conv = Conv((1,1), (mask=='A' ? 1 : p) => 2*p, tanh; bias=false)
-    m_conv2 = Conv((1,1), p => p, sigmoid)
-    res_conv = Conv((1,1), p => p, sigmoid; bias=false)
-    return ConvBlock(n, p, res==1 ? true : false, last_layer, (l_conv, l_conv2), 
-        (r_conv, r_conv2), (m_conv, m_conv2, res_conv))
+    push!(r_conv, Conv((1, n), (mask=='A' ? 1 : p)=> 2*p, tanh))
+    push!(r_conv, Conv((1, 1), 2*p => p, sigmoid))
+    
+    push!(m_conv, Conv((1,1), (mask=='A' ? 1 : p) => 2*p, tanh; bias=false))
+    push!(m_conv, Conv((1,1), p => p, sigmoid))
+    push!(m_conv, Conv((1,1), p => p, sigmoid; bias=false))
+    return ConvBlock(n, p, res==1 ? true : false, last_layer, l_conv, 
+        r_conv, m_conv)
 end
 
 Flux.@functor ConvBlock
