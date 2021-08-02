@@ -1,10 +1,10 @@
-using Base: Integer, Float64
 ##
-module BPnetModel
 """
+    module BPnetModel
 Module that builds and exports the BPnet object and useful, related funcitonalities
 like sampling and log probability evaluators
 """
+module BPnetModel
 using Flux
 using CUDA
 using CUDA: tanh, Core, size
@@ -51,11 +51,11 @@ function ConvBlock(p::Int, n::Int, mask::Char, last_layer)
     elseif mask=='B'
         res = 1
     end
-    l_conv = Conv((1, n-1+res), (mask=='A' ? 1 : p)=> p, tanh)
-    l_conv2 = Conv((1, 1), p => 2*p, tanh)
+    l_conv = Conv((1, n-1+res), (mask=='A' ? 1 : p)=> 2*p, relu)
+    l_conv2 = Conv((1, 1), 2*p => p, tanh)
     
-    r_conv = Conv((1, n), (mask=='A' ? 1 : p)=> p, tanh)
-    r_conv2 = Conv((1, 1), p => 2*p, tanh)
+    r_conv = Conv((1, n), (mask=='A' ? 1 : p)=> 2*p, relu)
+    r_conv2 = Conv((1, 1), 2*p => p, tanh)
     
     m_conv = Conv((1,1), (mask=='A' ? 1 : p) => 2*p, tanh; bias=false)
     m_conv2 = Conv((1,1), p => p, sigmoid)
@@ -83,12 +83,10 @@ function (block::ConvBlock)(x_l, x_m, x_r)
     x_l = ZeroPad(x_l, 2, block.n - 1, true) #Padding left stack
     x_r = ZeroPad(x_r, 2, block.n - 1, false) #Padding right stack
     
-    x_l = block.l_conv[1](x_l) #Convolutions on x_l, left stack
-    x_l = block.l_conv[2](x_l)
-    x_r = block.r_conv[1](x_r) #Convolutions on x_r, right stack
-    x_r = block.r_conv[2](x_r)
+    x_l = block.l_conv[1](x_l) #Convolution on x_l, left stack
+    x_r = block.r_conv[1](x_r) #Convolution on x_r, right stack
     x_m = block.m_conv[1](x_m) #Convolution on x_m
-    x_m .+= x_l .+ x_r #Combining information in main stack
+    x_m = x_m .+ x_l .+ x_r #Combining information in main stack
     
     x_m0 = tanh.(x_m[:, :, 1:end÷2, :]) #splitting x_m across channels dim
     x_m1 = σ.(x_m[:, :, (end÷2)+1:end, :])
@@ -97,7 +95,11 @@ function (block::ConvBlock)(x_l, x_m, x_r)
     x_m = block.m_conv[2](x_m) #Further conv on x_m
     if block.res
         x_m2 = block.m_conv[3](x_m2)
-        x_m .+= x_m2
+        x_m = x_m .+ x_m2
+    end
+    if block.last_layer==false #Convolve left, right stacks if not last layer
+        x_l = block.l_conv[2](x_l)
+        x_r = block.r_conv[2](x_r)
     end
     return x_l, x_m, x_r
 end
@@ -128,7 +130,8 @@ function BPnet(kernel_size::Int, net_width::Int, net_depth::Int)
                                     i==net_depth ? true : false)        
     end
     final_conv = Conv((1,1), net_width => 1, sigmoid)
-    return BPnet(kernel_size, net_width, net_depth, layers, final_conv)
+    return BPnet(kernel_size, net_width, net_depth, layers, 
+            final_conv)
 end
 
 Flux.@functor BPnet
@@ -191,7 +194,7 @@ function sample(model::BPnet, L::Integer, batch_size::Integer)
     end
     
     #Enforce Z2 symmetry
-    probs = CUDA.fill(0.50f0, (1,1,1,batch_size))
+    probs = CUDA.fill(0.5f0, (1,1,1,batch_size))
     sample = sample .* BernoulliGPU(probs)
 end
 

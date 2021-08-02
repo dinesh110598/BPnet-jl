@@ -12,7 +12,7 @@ __shape__ ::String - shape of the lattice, either "square" or
 __pbc__ ::Bool - specify whether periodic boundary conditon is 
     imposed
 """
-function H(x::AbstractArray{T,N}, shape="square", pbc=true) where {T,N}
+function H(x::AbstractArray, shape="square", pbc=true)
     if pbc
         #x_n stores the sum of neighbors at every position
         x_n = circshift(x, (1,0,0,0))
