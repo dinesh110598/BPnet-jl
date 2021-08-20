@@ -12,6 +12,8 @@ __shape__ ::String - shape of the lattice, either "square" or
 __pbc__ ::Bool - specify whether periodic boundary conditon is 
     imposed
 """
+J = -1f0
+
 function H(x::AbstractArray, shape="square", pbc=true)
     if pbc
         #x_n stores the sum of neighbors at every position

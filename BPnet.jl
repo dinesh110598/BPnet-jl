@@ -55,15 +55,15 @@ function ConvBlock(p::Int, n::Int, mask::Char, last_layer)
     r_conv = Vector{Conv}(undef, 0)
     m_conv = Vector{Conv}(undef, 0)
     
-    push!(l_conv, Conv((1, n-1+res), (mask=='A' ? 1 : p)=> 2*p, tanh))
-    push!(l_conv, Conv((1, 1), 2*p => p, sigmoid))
+    push!(l_conv, Conv((1, n-1+res), (mask=='A' ? 1 : p)=> p, Flux.mish))
+    push!(l_conv, Conv((1, 1), p => p, Flux.mish))
     
-    push!(r_conv, Conv((1, n), (mask=='A' ? 1 : p)=> 2*p, tanh))
-    push!(r_conv, Conv((1, 1), 2*p => p, sigmoid))
+    push!(r_conv, Conv((1, n), (mask=='A' ? 1 : p)=> p, Flux.mish))
+    push!(r_conv, Conv((1, 1), p => p, Flux.mish))
     
-    push!(m_conv, Conv((1,1), (mask=='A' ? 1 : p) => 2*p, tanh; bias=false))
-    push!(m_conv, Conv((1,1), p => p, sigmoid))
-    push!(m_conv, Conv((1,1), p => p, sigmoid; bias=false))
+    push!(m_conv, Conv((1,1), (mask=='A' ? 1 : p) => p, Flux.mish; bias=false))
+    push!(m_conv, Conv((1,1), p => p, Flux.mish))
+    push!(m_conv, Conv((1,1), p => p, Flux.mish; bias=false))
     return ConvBlock(n, p, res==1 ? true : false, last_layer, l_conv, 
         r_conv, m_conv)
 end
@@ -91,10 +91,6 @@ function (block::ConvBlock)(x_l, x_m, x_r)
     x_r = block.r_conv[1](x_r) #Convolution on x_r, right stack
     x_m = block.m_conv[1](x_m) #Convolution on x_m
     x_m = x_m .+ x_l .+ x_r #Combining information in main stack
-    
-    x_m0 = tanh.(x_m[:, :, 1:end÷2, :]) #splitting x_m across channels dim
-    x_m1 = σ.(x_m[:, :, (end÷2)+1:end, :])
-    x_m = x_m0 .* x_m1 #Gating on x_m, main stack
 
     x_m = block.m_conv[2](x_m) #Further conv on x_m
     if block.res
@@ -203,13 +199,13 @@ function sample(model::BPnet, L::Integer, batch_size::Integer)
 end
 
 function _log_prob(sample, x_hat)
-    mask = (sample .+ 1.0f0) ./ 2.0f0
+    mask = (sample .+ 1f0) ./ 2f0
     log_prob = (
-        CUDA.log.(x_hat .+ 1f-5).*mask +
-        CUDA.log.(1.0f0 .- x_hat .+ 1f-5).*(1.0f0 .- mask)
+        log.(x_hat .+ 1f-5).*mask +
+        log.(1.0f0 .- x_hat .+ 1f-5).*(1.0f0 .- mask)
     )
-    log_prob = CUDA.sum(log_prob, dims=1:3)
-    return reshape(log_prob, size(sample)[4])
+    log_prob = sum(log_prob, dims=1:3)
+    return dropdims(log_prob, dims=(1,2,3))
 end
 
 function log_prob(model, sample)
@@ -220,9 +216,10 @@ function log_prob(model, sample)
     sample_inv = -sample
     x_hat_inv = model(sample_inv)
     log_prob_inv = _log_prob(sample_inv, x_hat_inv)
-    #Stacking log_prob and log_prob_inv along a horizontal dim
+    #Performing a stable logsumexp
     z = cat(log_prob, log_prob_inv, dims=2)
-    log_prob = reshape(logsumexp(z, dims=2), size(sample)[4])
+    log_prob = dropdims(logsumexp(z, dims=2), dims=2) #Above procedure not very different bw f32 and f64
+    
     return log_prob
 end
 
