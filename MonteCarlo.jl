@@ -75,15 +75,11 @@ function sum_nn(spin::Array, pos::Tuple, params::IsingParams)
     return convert(Float64, sum)
 end
 
-function SingleSpinFlip(params::IsingParams, eq_swp::Integer;
-                        beta=0.44, initial="random")
+function SingleSpinFlip(params::IsingParams, eq_swp::Integer, init_conf;
+                        beta=0.44)
 
     L = params.L
-    if initial=="random"
-        spin = rand([1,-1], L,L)
-    elseif initial=="ones"
-        spin = ones(L, L)
-    end
+    spin = init_conf
 
     autocorr = Array{Float64}(undef, eq_swp+1)
     autocorr[1] = 1
@@ -106,4 +102,7 @@ function SingleSpinFlip(params::IsingParams, eq_swp::Integer;
     end
     return autocorr, mag
 end
-##
+
+function WolffCluster(params::IsingParams, eq_swp::Integer, init_conf)
+    
+end
