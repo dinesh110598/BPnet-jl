@@ -5,11 +5,15 @@ Module that builds and exports the BPnet object and useful, related funcitonalit
 like sampling and log probability evaluators
 """
 module BPnetModel
-using Flux
+using Flux, Distributions
 using CUDA
 using CUDA: tanh, Core, size
 
 export BPnet, sample, log_prob, ZeroPad
+
+Flux.@adjoint CUDA.zeros(x...) = CUDA.zeros(x...), _ -> map(_ -> nothing, x)
+Flux.@adjoint CUDA.ones(x...) = CUDA.ones(x...), _ -> map(_ -> nothing, x)
+Flux.@adjoint CUDA.fill(x::Real, dims...) = CUDA.fill(x, dims...), Δ->(sum(Δ), map(_->nothing, dims)...)
 
 """
 Pads zeros to arr at dim(=1 or 2), with the arg "before" determining whether
@@ -196,6 +200,34 @@ function sample(model::BPnet, L::Integer, batch_size::Integer)
     #Enforce Z2 symmetry
     probs = CUDA.fill(0.5f0, (1,1,1,batch_size))
     sample = sample .* BernoulliGPU(probs)
+end
+
+function cluster_update(model::BPnet, x::AbstractArray{T,2}, cluster_size=32) where T
+    r = model.d*(model.n - 1)
+    L = size(x)[1]
+    c = cluster_size
+    #We need to assign a cluster position randomly
+    p1, p2 = rand(1:L-c+1, 2)
+    Δlp = 0f0
+    for i in p1:p1+c-1, j in p2:p2+c-1
+        x_l = x[max(i-1,1):i, max(j-r, 1):min(j+r, L)]
+        x_r = copy(x_l)
+        x_m = similar(x_l)
+        fill!(x_m, 0f0)
+        x_hat = model(x_l, x_m, x_r)
+        i_h = min(i,2)
+        j_h = min(j,r+1)
+        #Bernoulli distribution sampling
+        if (i, j) == (1, 1)
+            probs = 0.50f0
+        else
+            probs = x_hat[i_h, j_h]
+        end
+        val = Float32(rand(Bernoulli(probs)))*2f0 - 1f0
+        Δlp += (val - x[i,j])*(log(probs) - log(1-probs))
+        x[i,j] = val
+    end
+    return x, Δlp
 end
 
 function _log_prob(sample, x_hat)
