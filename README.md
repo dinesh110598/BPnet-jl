@@ -4,5 +4,10 @@ BPnet stands for Boltzmann-PixelCNNetwork which is a generative neural network t
 
 We've included some Jupyter notebooks to illustrate the meaning behind the code in .jl files and perform some experiments with the models and methods defined inside them.
 
+## Neural Monte Carlo - goals
+We are trying to propose a new method based on autoregressive neural networks, for simulating the Ising model at equilibrium. We already have well-established Monte Carlo methods like the super simple **Single Spin Flip Metropolis** algorithm and the **Wolff cluster-update** algorithm (which is known to be faster near phase transition).
+
+There's a caveat though- Since periodic boundary conditions is much trickier to implement for autoregressive networks, we'll work with an "open" boundary of zero-valued spins. We then evaluate a Monte Carlo *time series* (using either Metropolis or Wolff) of two qunatities at different temperatures- absolute magnetization and energy. From here, we can calculate routinely computed quantities like average magnetization, average energy, magnetic susceptibility and specific heat and energy as well as the errors in them. Apparently, reproducing these quantities *accurately* and *quickly* is sufficient to show that there's merit in any alternative new method we propose.
+
 ## Note on programming language and ML library
 We use the Flux package in Julia to build, train and deploy neural networks. Though not as popular as Tensorflow or PyTorch in the Python language, Flux provides an automatic differentiation framework over native Julia types (like Arrays and CuArrays) and operations as well as slightly better speeds owing to Julia being a compiled language. Tensorflow or PyTorch works with only objects and ops defined within the respective modules. This flexibility of Flux has already proven advantageous to implement latest innovations in NN architecture like [Neural ODE](https://julialang.org/blog/2019/01/fluxdiffeq/). So in the broader vision of developing DL models that aid study of physics, we would like not be limited by the functionality available in tf or torch, hence Flux.

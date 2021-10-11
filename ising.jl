@@ -7,10 +7,11 @@ struct IsingParams
     pbc::Bool
     lattice::String
     J::Float64
+    next_nearest::Bool
 end
 
-function IsingParams(L=32;pbc=false, lattice="square", J=1e0)
-    return IsingParams(L, pbc, lattice, J)
+function IsingParams(L=32;pbc=false, lattice="square", J=1e0, nn=false)
+    return IsingParams(L, pbc, lattice, J, nn)
 end
 
 function H(x::AbstractArray{T,4}, params::IsingParams) where T

@@ -2,7 +2,7 @@ include("train.jl")
 
 module MonteCarloMethods
 
-using Statistics, DataStructures, DataFrames, CSV
+using Statistics, DataStructures, DataFrames, CSV, Flux
 using ..Ising, ..BPnetModel
 export SingleSpinFlip, WolffCluster, neural_mc, PhysicalObservables, display_res
 
@@ -164,13 +164,11 @@ function PhysicalObservables(mag, ener, beta, L)
     E = mean(ener)
     τ_m = autocor_time(mag, 200)
     τ_E = autocor_time(ener, 200)
-    @info "Autocor" τ_m τ_E
+    @info "Autocorrelation times" τ_m τ_E
     δm = sqrt((1+2τ_m)/(n-1))*std(mag)
     δE = sqrt((1+2τ_E)/(n-1))*std(ener)
-    #χ = (beta*L^2)*var(mag)
-    #C = (beta^2/L^2)*var(ener)
 
-    bootstrap_χ = Array{Float64}(undef, n)
+    #=bootstrap_χ = Array{Float64}(undef, n)
     bootstrap_C = Array{Float64}(undef, n)
     trial_mag = Array{Float64}(undef, n)
     trial_ener = Array{Float64}(undef, n)
@@ -182,10 +180,25 @@ function PhysicalObservables(mag, ener, beta, L)
         bootstrap_χ[i] = (beta*L^2)*var(trial_mag)
         bootstrap_C[i] = (beta^2/L^2)*var(trial_ener)
     end
-    χ = mean(bootstrap_χ)
-    C = mean(bootstrap_C)
     δχ = std(bootstrap_χ)
-    δC = std(bootstrap_C)
+    δC = std(bootstrap_C)=#
+    #Implementing Jackknife method for error estimation
+    n_m = ceil(Int64, n/ceil(2τ_m))
+    n_E = ceil(Int64, n/ceil(2τ_E))
+    ind_mag = [mag[ceil(Int64, 2τ_m)*i+1] for i in 0:n_m-1]
+    ind_ener = [ener[ceil(Int64, 2τ_E)*i+1] for i in 0:n_E-1]
+    JK_χ = Array{Float64}(undef, n_m)
+    JK_C = Array{Float64}(undef, n_E)
+    χ = (beta*L^2)*var(ind_mag)
+    C = (beta^2/L^2)*var(ind_ener)
+    for i in 1:n_m
+        JK_χ[i] = (beta*L^2)*var(ind_mag[1:end .!=i])
+    end
+    for i in 1:n_E
+        JK_C[i] = (beta^2/L^2)*var(ind_ener[1:end .!=i])
+    end
+    δχ = sqrt(sum((JK_χ.-χ).^2))
+    δC = sqrt(sum((JK_C.-C).^2))
     return PhysicalObservables(m, δm, E, δE,
             χ, δχ, C, δC)
 end

@@ -22,11 +22,9 @@ the padding is before or after. l indicates the length of padding
 function ZeroPad(arr::AbstractArray, dim::Integer, l::Integer, before=true)
     #Create array of zeros that will be padded to arr
     if dim==1
-        z = similar(arr, l,0,size(arr)[3:4]...)
-        fill!(z, 0f0)
+        z = CUDA.zeros(l,0,size(arr)[3:4]...)
     elseif dim==2
-        z = similar(arr, 0,l,size(arr)[3:4]...)
-        fill!(z, 0f0)
+        z = CUDA.zeros(0,l,size(arr)[3:4]...)
     end
 
     if before
@@ -88,8 +86,8 @@ function (block::ConvBlock)(x_l, x_m, x_r)
         x_r = x_r[1:end-1, :, :, :]#cropping x_r
         x_r = ZeroPad(x_r, 1, 1, true)
     end
-    x_l = ZeroPad(x_l, 2, block.n - 1, true) #Padding left stack
-    x_r = ZeroPad(x_r, 2, block.n - 1, false) #Padding right stack
+    x_l = ZeroPad(x_l, 2, block.n-1, true) #Padding left stack
+    x_r = ZeroPad(x_r, 2, block.n-1, false) #Padding right stack
     
     x_l = block.l_conv[1](x_l) #Convolution on x_l, left stack
     x_r = block.r_conv[1](x_r) #Convolution on x_r, right stack
@@ -157,8 +155,7 @@ x: Input array based on which output probs are evaluated
 function (model::BPnet)(x)
     x_l = x
     x_r = copy(x_l)
-    x_m = similar(x)
-    fill!(x_m, 0f0)
+    x_m = CUDA.zeros(size(x)...)
     return model(x_l, x_m, x_r)
 end
 
@@ -192,7 +189,7 @@ function sample(model::BPnet, L::Integer, batch_size::Integer)
         if (i, j) == (1, 1)
             probs = CUDA.fill(0.50f0, (1, batch_size))
         else
-            probs = x_hat[i_h, j_h, :, :]
+            probs = x_hat[i_h, j_h, :, :]   
         end
         sample[i, j, :, :] = BernoulliGPU(probs)
     end
