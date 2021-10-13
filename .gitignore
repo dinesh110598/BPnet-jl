@@ -2,3 +2,6 @@
 .ipynb_checkpoints/main-checkpoint.ipynb
 notes.md
 .vscode/settings.json
+__pycache__/BPnetModel.cpython-39.pyc
+__pycache__/ising.cpython-39.pyc
+__pycache__/train.cpython-39.pyc
