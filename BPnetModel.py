@@ -1,6 +1,5 @@
 from torch import nn
 import torch
-import numpy as np
 
 class ConvBlock(nn.Module):
     def __init__(self, p, n, mask='B', last_layer=False):
@@ -42,7 +41,7 @@ class ConvBlock(nn.Module):
 
         x_m = self.activation(self.m_conv[1](x_m))
         if self.res:
-            x_m2 = self.activation(self.m_conv[2](x_m2)) # type: ignore
+            x_m2 = self.activation(self.m_conv[2](x_m2))
             x_m += x_m2
         if not self.last_layer:
             x_l = self.activation(self.l_conv[1](x_l))
@@ -66,28 +65,29 @@ class BPnet(nn.Module):
         x_r = torch.clone(x)
         x_m = torch.zeros_like(x)
         for block in self.blocks:
-            x_l, x_m, x_r = block(x_l, x_m , x_r)
+            x_l, x_m, x_r = block.forward(x_l, x_m , x_r)
         return self.final_conv(x_m)
 
-def sample(model: BPnet, L: int, batch_size: int):
-    """Samples a configuration from the variational distribution associated with
-    the neural network
-    """
-    x = torch.zeros(batch_size, 1, L, L, device="cuda")
-    r = model.d*(model.n - 1)
-    for i in range(L):
-        for j in range(L):
-            x_hat = model.forward(x)
-            i_h = np.min([i, 2])
-            j_h = np.min([j, r+1])
-            probs = (torch.empty((batch_size, 1), device="cuda").fill_(0.5)
-                        if (i, j) == (0, 0) else x_hat[:, :, i_h, j_h])
-            x[:, :, i, j] = torch.bernoulli(probs)
-    
-    #Enforce Z2 symmetry
-    probs = torch.empty((batch_size, 1, 1, 1), device="cuda").fill_(0.5)
-    x = x * torch.bernoulli(probs)
-    return x
+    def sample(self, L: int, batch_size: int):
+        """Samples a configuration from the variational distribution associated with the neural network
+        """
+        x = torch.zeros(batch_size, 1, L, L, device="cuda")
+        r = self.d*(self.n - 1)
+        for i in torch.arange(L):
+            for j in torch.arange(L):
+                x_l = x[:, :,torch.maximum(i-1, i*0) : i+1, 
+                        torch.maximum(j-r, i*0):torch.minimum(j+r+1, torch.tensor(L))]
+                x_hat = self.forward(x_l)
+                i_h = torch.min(torch.tensor([i, 1], device="cuda"))
+                j_h = torch.min(torch.tensor([j, r], device="cuda"))
+                probs = (torch.empty((batch_size,), device="cuda").fill_(0.5)
+                            if (i, j) == (0, 0) else x_hat[:, 0, i_h, j_h])
+                x[:, 0, i, j] = 2*torch.bernoulli(probs) - 1
+        
+        #Enforce Z2 symmetry
+        probs = torch.empty((batch_size, 1, 1, 1), device="cuda").fill_(0.5)
+        x = x * (2*torch.bernoulli(probs) - 1)
+        return x
 
 def _log_prob(x, x_hat):
     mask = (x + 1)/2

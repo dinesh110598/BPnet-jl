@@ -151,12 +151,18 @@ struct PhysicalObservables
 end
 
 function PhysicalObservables(mag, ener, beta, L)
-    function autocor_time(x, max)
-        a = Array{Float64}(undef, max)
-        for j in 1:max
-            a[j] = cor(x[1:end-max], x[1+j:end-max+j])
+    function autocor_time(x, max=500)
+        r = zeros(max+1)
+        v = var(x)
+        m = mean(x)
+        for t in 0:max
+            r[t+1] = (mean(x[1:end-max].*x[1+t:end-max+t]) - m^2) / v
+            if r[t+1]<0
+                r[t+1] = 0
+                break
+            end
         end
-        return sum(a)+1
+        return sum(r)
     end
     
     n = size(mag)[1]
@@ -167,21 +173,6 @@ function PhysicalObservables(mag, ener, beta, L)
     @info "Autocorrelation times" τ_m τ_E
     δm = sqrt((1+2τ_m)/(n-1))*std(mag)
     δE = sqrt((1+2τ_E)/(n-1))*std(ener)
-
-    #=bootstrap_χ = Array{Float64}(undef, n)
-    bootstrap_C = Array{Float64}(undef, n)
-    trial_mag = Array{Float64}(undef, n)
-    trial_ener = Array{Float64}(undef, n)
-    for i in 1:n
-        for j in 1:n
-            trial_mag[j] = mag[rand(1:n)]
-            trial_ener[j] = ener[rand(1:n)]
-        end
-        bootstrap_χ[i] = (beta*L^2)*var(trial_mag)
-        bootstrap_C[i] = (beta^2/L^2)*var(trial_ener)
-    end
-    δχ = std(bootstrap_χ)
-    δC = std(bootstrap_C)=#
     #Implementing Jackknife method for error estimation
     n_m = ceil(Int64, n/ceil(2τ_m))
     n_E = ceil(Int64, n/ceil(2τ_E))
@@ -203,32 +194,17 @@ function PhysicalObservables(mag, ener, beta, L)
             χ, δχ, C, δC)
 end
 
-function neural_mc(model::BPnet, params, batch_size, beta; n=1, c=missing)
+function neural_mc(model::BPnet, params, batch_size, beta; n=1)
     L = params.L
-
-    function RegressionCoef() #Or, I can save these coefficients as BSON
-        x = sample(model, L, 1000) |> cpu #along with the model
-        lp = log_prob(model, x) |> cpu
-        E = H(x, params) |> cpu
-        @. reg(e, p) = -p[1]*beta*e - p[2]
-        fit = curve_fit(reg, E, lp, [1.,1000.])
-        return coef(fit)
-    end
-
     lp = Array{Float64}(undef, 0)
     E = Array{Float64}(undef, 0)
     m = Array{Float64}(undef, 0)
-    #if ismissing(c)
-        #c = RegressionCoef()
-    #end
     for i in 1:n
         x2 = sample(model, L, batch_size)
+        #Symmetry operations on the sample
         lp2 = log_prob(model, x2) |> cpu
         e2 = H(x2, params) |> cpu
         m2 = dropdims(mean(x2, dims=(1,2,3)), dims=(1,2,3)) |> cpu
-        #Removing samples that are outlying the straight line fit
-        #ind = Tuple([j for j=1:batch_size if lp2[j]+beta*c[1]*e2[j]<-c[2]])
-        #ind = Tuple([])
         m = cat(m, m2, dims=1)
         lp = cat(lp, lp2, dims=1)
         E = cat(E, e2, dims=1)

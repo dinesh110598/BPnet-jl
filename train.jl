@@ -31,7 +31,7 @@ function train_loop(model::BPnet, iter::Integer, beta::Real,
     p = Progress(iter; showspeed=true)
     for step in 1:iter
         if anneal
-            beta = beta_conv*(1+beta_anneal^step)
+            beta = beta_conv*(1-beta_anneal^step)
         end
         x = sample(model, pars.L, batch_size)
         E = H(x, pars)

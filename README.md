@@ -11,3 +11,9 @@ There's a caveat though- Since periodic boundary conditions is much trickier to 
 
 ## Note on programming language and ML library
 We use the Flux package in Julia to build, train and deploy neural networks. Though not as popular as Tensorflow or PyTorch in the Python language, Flux provides an automatic differentiation framework over native Julia types (like Arrays and CuArrays) and operations as well as slightly better speeds owing to Julia being a compiled language. Tensorflow or PyTorch works with only objects and ops defined within the respective modules. This flexibility of Flux has already proven advantageous to implement latest innovations in NN architecture like [Neural ODE](https://julialang.org/blog/2019/01/fluxdiffeq/). So in the broader vision of developing DL models that aid study of physics, we would like not be limited by the functionality available in tf or torch, hence Flux.
+
+### Notes:
+- torch conv2d weight shape: (out_channels, in_channels, kernel_rows, kernel_cols), bias shape: (out_channels,)
+- Flux conv2d weight shape: (kernel_rows, kernel_cols, in_channels, out_channels), bias shape: (out_channels,)
+### Debugging a possible bug in torch implementation:
+1. Succesfully used PyCall to transfer the state_dic
