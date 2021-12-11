@@ -10,7 +10,7 @@ struct IsingParams
     next_nearest::Bool
 end
 
-function IsingParams(L=32;pbc=false, lattice="square", J=1e0, nn=false)
+function IsingParams(L=32; pbc=true, lattice="square", J=1e0, nn=false)
     return IsingParams(L, pbc, lattice, J, nn)
 end
 

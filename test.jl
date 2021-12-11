@@ -9,9 +9,10 @@ using Plots, DataFrames, CSV, PyCall, StatsBase
 ##
 L = 32
 prmts = IsingParams(L)
-beta = 0.5
+beta = 0.4
 BSON.@load "Saves/mish_(9,16,2)/L$(L)_b_$(beta).bson" cpu_model
-model = gpu(cpu_model);
+model = gpu(cpu_model)
+train_loop(model, 500, beta, prmts, init_eta=0.005)
 ##
 r(x) = reverse(x, dims=(1, 2))
 f(x) = PyReverseDims(x)
@@ -89,24 +90,6 @@ end
 L = 32
 prmts = IsingParams(L)
 betas = [0.4, 0.4407, 0.46, 0.5]
-hist = Array{Float64, 2}(undef, 10, 4)
-F_range = Array{Float64, 2}(undef, 11, 4)
-i = 1
-for beta in betas
-    BSON.@load "Saves/mish_(9,16,2)/L$(L)_b_$(beta).bson" cpu_model
-    model = gpu(cpu_model)
-    x = BPnetModel.sample(model, L, 2000)
-    lp = log_prob(model, x);
-    E = H(x, prmts);
-    F = (lp./beta .+ E)./(L^2) |> cpu;
-    F_range[:, i] = range(minimum(F), maximum(F), length=11)
-    hist[:, i] = fit(Histogram, F, F_range[:, i]).weights
-    i += 1
-end
-##
-L = 32
-prmts = IsingParams(L)
-betas = [0.4, 0.4407, 0.46, 0.5]
 for beta in betas
     model = BPnet(9, 16, 2) |> gpu
     train_loop(model, 500, beta, prmts, init_eta=0.008, anneal=true)
@@ -130,15 +113,21 @@ plot(cpu(E), reg(cpu(E), coef(fit)),
     xlabel="Total Energy(E)", ylabel="Log Probability(lp)")
 scatter!(cpu(E), cpu(lp), markersize=2, markercolor="black", label="Actual lp")
 ##
-betas = [0.4, 0.4407, 0.46, 0.5]
+betas = [0.4]
 L = 32
 prms = IsingParams(L)
+τs = Array{Float64}(undef, 2)
 for beta in betas 
     BSON.@load "Saves/mish_(9,16,2)/L$(L)_b_$(beta).bson" cpu_model
     model = gpu(cpu_model)
-    mag, ener = neural_mc(model, prms, 1000, beta, n=20)    
-    BSON.@save "Saves/MC_Data/NeuralMC2_L$(L)_b_$(beta).bson" mag ener
+    mag, ener = neural_mc(model, prms, 1000, beta, n=50)
+    τ_m = autocor_time(mag)
+    τ_E = autocor_time(ener)
+    τs[1] = τ_m
+    τs[2] = τ_E  
+    BSON.@save "Saves/MC_Data/Global_ac/L$(L)_b_$(beta).bson" τ_m τ_E
 end
+τs
 ##
 betas = [0.4, 0.4407, 0.46, 0.5]
 NeuralMC2_L32 = DataFrame(beta=Float64[], m=Float64[], δm=Float64[], 

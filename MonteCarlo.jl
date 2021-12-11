@@ -4,7 +4,7 @@ module MonteCarloMethods
 
 using Statistics, DataStructures, DataFrames, CSV, Flux
 using ..Ising, ..BPnetModel
-export SingleSpinFlip, WolffCluster, neural_mc, PhysicalObservables, display_res
+export SingleSpinFlip, WolffCluster, neural_mc, PhysicalObservables, display_res, autocor_time
 
 function sum_nn(spin::Array, pos::Tuple, params::IsingParams)
 
@@ -157,7 +157,7 @@ function PhysicalObservables(mag, ener, beta, L)
         m = mean(x)
         for t in 0:max
             r[t+1] = (mean(x[1:end-max].*x[1+t:end-max+t]) - m^2) / v
-            if r[t+1]<0
+            if r[t+1] < 0
                 r[t+1] = 0
                 break
             end
@@ -194,14 +194,43 @@ function PhysicalObservables(mag, ener, beta, L)
             χ, δχ, C, δC)
 end
 
+function autocor_time(x, max=500)
+    r = zeros(max+1)
+    v = var(x)
+    m = mean(x)
+    for t in 0:max
+        r[t+1] = (mean(x[1:end-max].*x[1+t:end-max+t]) - m^2) / v
+        if r[t+1] < 0
+            r[t+1] = 0
+            break
+        end
+    end
+    return sum(r)
+end
+
 function neural_mc(model::BPnet, params, batch_size, beta; n=1)
     L = params.L
     lp = Array{Float64}(undef, 0)
     E = Array{Float64}(undef, 0)
     m = Array{Float64}(undef, 0)
-    for i in 1:n
+    for l in 1:n
         x2 = sample(model, L, batch_size)
         #Symmetry operations on the sample
+        for k in 1:batch_size
+            y = x2[:, :, :, k]
+            i, j = rand(1:L, 2)
+            y = circshift(y, (i, j, 0))
+            if rand(Bool)
+                y = reverse(y, dims=1)
+            end
+            if rand(Bool)
+                y = reverse(y, dims=2)
+            end
+            if rand(Bool)
+                y = permutedims(y, (2, 1, 3))
+            end
+            x2[:, :, :, k] = y
+        end
         lp2 = log_prob(model, x2) |> cpu
         e2 = H(x2, params) |> cpu
         m2 = dropdims(mean(x2, dims=(1,2,3)), dims=(1,2,3)) |> cpu
